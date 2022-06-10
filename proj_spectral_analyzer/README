@@ -15,7 +15,9 @@ in a ROM. The overlapping FFT data segments are stored in the DDRAM and then sen
 
 File contents:
 
-src - source files for the FFT, AXI stream slave and master, PS wrapper
+src/PL - source files for the FFT, AXI stream slave and master, PS wrapper
+
+src/PS - source files for the Zynq PS
 
 sw - scripts for displaying of the computed data, scripts for generating the ROM tables
 
