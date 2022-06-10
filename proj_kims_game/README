@@ -1,0 +1,5 @@
+This is a simple project that I have done to test I/O capabilities of my freshly purchased PYNQ board.
+
+It implements the well-known Kim's game: https://en.wikipedia.org/wiki/Kim%27s_Game
+
+Have fun!
