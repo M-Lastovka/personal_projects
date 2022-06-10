@@ -2,4 +2,8 @@ This is a simple project that I have done to test I/O capabilities of my freshly
 
 It implements the well-known Kim's game: https://en.wikipedia.org/wiki/Kim%27s_Game
 
+Project status: Complete 
+
+Used HW: TUL PYNQ Z2 (Zynq based board)
+
 Have fun!
