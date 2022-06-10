@@ -1,0 +1,14 @@
+------------------------------------------------------------------------------------------------------------------
+
+This project is a numerical simulation of the N-body problem (gravitational) and it is done exclusively in Matlab. 
+The goal was to provide some nice visualisation when thinking about problems of motion of bodies in potential fields.
+I also experimented with doing animations and interactive menus in Matlab. You can either choose to simulate on of
+the presets or you can manually enter the initial conditions for your own N-body problem.
+
+------------------------------------------------------------------------------------------------------------------
+
+In the src folder you'll find all the Matlab codes required to run this project.
+
+------------------------------------------------------------------------------------------------------------------
+
+Project status: Complete
