@@ -1,0 +1,6 @@
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+This project implements an inverse pendulum - a robotic device which sole purpose is to stay upright. Angular frequency is measured by a
+gyroscopic sensor, the data are then processed in a ARM Cortex M0+ MCU where a simple PID control loop is implemented. The MCU then drives a 
+stepper motor to balance the pendulum. A Bluetooth module can be used for PC communication. The MCU is bare metal. The project includes schematic
+and PCB design in Altium, code design and finally a physical realization.
