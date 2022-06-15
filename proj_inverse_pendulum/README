@@ -9,6 +9,6 @@ and PCB design in Altium, code design and finally a physical realization.
 
 Project folders:
 
-/codes - C codes for the MCU
+/src - C source codes for the MCU
 
 /pcb - PCB and schematic source codes
