@@ -77,12 +77,22 @@ BEGIN
     BEGIN    
     
         IF rising_edge(clk_a) THEN          
-            IF en_A = '1' THEN           
-                dout_A <= ram_v(to_integer(unsigned(addr_A)));              
-                IF wr_en_A = '1' THEN
+            IF en_A = '1' THEN   --read access        
+                dout_A <= ram_v(to_integer(unsigned(addr_A))); 
+                IF(C_VERB = VERB_HIGH) THEN
+                  REPORT "Value: " & integer'image(to_integer(signed(ram_v(to_integer(unsigned(addr_A)))))) & 
+                  "@ addr: [" & integer'image(to_integer(unsigned(addr_A))) & 
+                  "] read from the FFT memory A";
+                END IF;             
+                IF wr_en_A = '1' THEN --write access
                     ram_v(to_integer(unsigned(addr_A))) := din_A;
                     -- synthesis translate_off
                     ram_A_debug(to_integer(unsigned(addr_A))) <= din_A;
+                    IF(C_VERB = VERB_HIGH) THEN
+                      REPORT "Value: " & integer'image(to_integer(signed(din_A))) & 
+                      "@ addr: [" & integer'image(to_integer(unsigned(addr_A))) & 
+                      "] written to the FFT memory B";
+                    END IF;
                     -- synthesis translate_on
                 END IF;       
             END IF;       
@@ -96,10 +106,20 @@ BEGIN
         IF rising_edge(clk_b) THEN 
             IF en_B = '1' THEN
                 dout_B <= ram_v(to_integer(unsigned(addr_B)));  
+                IF(C_VERB = VERB_HIGH) THEN
+                  REPORT "Value: " & integer'image(to_integer(signed(ram_v(to_integer(unsigned(addr_B)))))) & 
+                  "@ addr: [" & integer'image(to_integer(unsigned(addr_B))) & 
+                  "] read from the FFT memory B";
+                END IF;
                 IF wr_en_B = '1' THEN
                     ram_v(to_integer(unsigned(addr_B))) := din_B;
                     -- synthesis translate_off
                     ram_B_debug(to_integer(unsigned(addr_B))) <= din_B;
+                    IF(C_VERB = VERB_HIGH) THEN
+                      REPORT "Value: " & integer'image(to_integer(signed(din_B))) & 
+                      "@ addr: [" & integer'image(to_integer(unsigned(addr_B))) & 
+                      "] written to the FFT memory B";
+                    END IF;
                     -- synthesis translate_on
                 END IF;                
             END IF;       
