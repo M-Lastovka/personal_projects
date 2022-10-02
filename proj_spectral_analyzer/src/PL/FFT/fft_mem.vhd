@@ -239,7 +239,7 @@ BEGIN
                     IF (tx_single_ndouble_mode = '1') THEN --single transfer
                         addr_even_0_c <= (OTHERS => '0');
                         addr_odd_0_c  <= (OTHERS => '0');
-                        addr_even_0_c <= addr_0_in;
+                        addr_even_1_c <= addr_0_in;
                         addr_odd_1_c  <= (OTHERS => '0');
                     ELSE                                   --double transfer
                         addr_even_0_c <= (OTHERS => '0');
@@ -578,6 +578,26 @@ BEGIN
     im_in_odd_1_d     <=       in_odd_1(C_SAMPLE_WDT-1 DOWNTO 0);  
     im_out_even_1_d   <=       out_even_1(C_SAMPLE_WDT-1 DOWNTO 0);
     im_out_odd_1_d    <=       out_odd_1(C_SAMPLE_WDT-1 DOWNTO 0); 
+
+    --synthesis translate_off
+    io_debug_proc : PROCESS(sys_clk_in) --generate logs when data is inputted or outputted from the FFT block
+    BEGIN
+        IF(rising_edge(sys_clk_in) AND rx_single_ndouble_mode = '1' AND 
+        (C_VERB = VERB_MED OR C_VERB = VERB_HIGH)) THEN --only single transfers
+            IF(alg_ctrl = RX) THEN
+              REPORT "Real: " & integer'image(to_integer(signed(data_re_0_in))) & 
+              " Imag: " & integer'image(to_integer(signed(data_im_0_in))) & 
+              "@ addr: [" & integer'image(to_integer(unsigned(addr_0_in))) & 
+              "] written to the FFT memory";
+            ELSIF(alg_ctrl = TX) THEN
+              REPORT "Real: " & integer'image(to_integer(signed(data_re_0_out))) & 
+              " Imag: " & integer'image(to_integer(signed(data_im_0_out))) & 
+              "@ addr: [" & integer'image(to_integer(unsigned(addr_0_in))) & 
+              "] read from the FFT memory";
+            END IF;
+        END IF;
+    END PROCESS io_debug_proc;
+    --synthesis translate_on
     
 
 END structural;
