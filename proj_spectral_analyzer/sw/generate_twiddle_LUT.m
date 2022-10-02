@@ -1,7 +1,7 @@
 %% script to generate a twiddle factor ROM for FPGA implementation
 
-size_of_fft = 2^4;
-dft_wdt = 32;
+size_of_fft = 2^3;
+dft_wdt = 48;
 scale_const_log2 = dft_wdt/2-1; %determines how many bits to the left do we shift the twiddle factors
 block_wdt = 4;         %number of twiddle factors per line
 
@@ -25,7 +25,7 @@ end
     %function definition
     temp = '';
     temp = strcat(temp, '----------------------------------------------------------------------------------\n');
-    temp = strcat(temp, '-- Create Date: 07/17/2021 05:27:38 PM:\n');
+    temp = strcat(temp, '-- Create Date: 08/17/2021 05:27:38 PM:\n');
     temp = strcat(temp, '-- Module Name: fft_twiddle_LUT - rtl\n');
     temp = strcat(temp, '-- Description: LUT for roots of unity, a.k.a twiddle factors\n');
     temp = strcat(temp, '-- Dependencies: dig_top_pckg \n');
@@ -41,7 +41,7 @@ end
     temp = strcat(temp, 'ENTITY fft_twiddle_LUT IS\n');
     temp = strcat(temp, '    PORT (\n');
     temp = strcat(temp, '           sys_clk_in     : IN  std_logic;\n');
-    temp = strcat(temp, '           addr_twiddle_c : IN  std_logic_vector(C_FFT_SIZE_LOG2-1 DOWNTO 0);\n');
+    temp = strcat(temp, '           addr_twiddle   : IN  std_logic_vector(C_FFT_SIZE_LOG2-1 DOWNTO 0);\n');
     temp = strcat(temp, '           twiddle_en     : IN  std_logic;\n');
     temp = strcat(temp, '           twiddle_re     : OUT std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);\n');
     temp = strcat(temp, '           twiddle_im     : OUT std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0)\n');
@@ -137,8 +137,8 @@ end
     temp = strcat(temp, 'BEGIN\n\n');
     temp = strcat(temp, 'IF (rising_edge(sys_clk_in)) THEN\n');
     temp = strcat(temp,'  IF (twiddle_en = ''1'') THEN\n');
-    temp = strcat(temp,'    twiddle_re <= C_TWIDDLE_LUT(to_integer(unsigned(addr_twiddle_c)))(C_DFT_WDT-1 DOWNTO C_DFT_WDT/2);\n');
-    temp = strcat(temp,'    twiddle_im <= C_TWIDDLE_LUT(to_integer(unsigned(addr_twiddle_c)))(C_DFT_WDT/2-1 DOWNTO 0);\n');
+    temp = strcat(temp,'    twiddle_re <= C_TWIDDLE_LUT(to_integer(unsigned(addr_twiddle)))(C_DFT_WDT-1 DOWNTO C_DFT_WDT/2);\n');
+    temp = strcat(temp,'    twiddle_im <= C_TWIDDLE_LUT(to_integer(unsigned(addr_twiddle)))(C_DFT_WDT/2-1 DOWNTO 0);\n');
     temp = strcat(temp,'  END IF;\n');
     temp = strcat(temp,'END IF;\n\n');
     temp = strcat(temp, 'END PROCESS rom_proc;\n\n');
