@@ -27,4 +27,11 @@ doc - documentation
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
-Project status: Not complete, so far FFT processing has been designed and simulated, AXI stream slave/master has been designed
+Project status: Not complete, so far FFT processing has been designed and simulated, AXI stream slave/master has been designed and simulated
+
+TODO: create and package the as an IP
+      verify the IP with the Xilinx AXI Stream verification IP
+      do system the block design(use AXI DMA, interrupt controller etc.)
+      write the SW for the PL side(starting FFT operations, sending the outputted data through ethernet)
+      sanity testing of the whole system
+
