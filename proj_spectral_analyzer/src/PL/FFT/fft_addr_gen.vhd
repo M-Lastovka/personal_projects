@@ -28,6 +28,7 @@ LIBRARY xil_defaultlib;
 USE xil_defaultlib.dig_top_pckg.ALL;
 
 
+
 ENTITY fft_addr_gen IS
     PORT (
            -------------------clocks and reset--------------------------------
