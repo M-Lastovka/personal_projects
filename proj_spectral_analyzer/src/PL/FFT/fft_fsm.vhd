@@ -207,10 +207,14 @@ BEGIN
                     next_state <= COMP_0;     
                 END IF;
             WHEN TREE_DONE                      =>
-                IF burst_mode_en = '1' THEN
-                    next_state <= TX_BURST;
+                IF request = '1' THEN
+                    IF burst_mode_en = '1' THEN
+                        next_state <= TX_BURST;
+                    ELSE
+                        next_state <= TX_WAIT;
+                    END IF;
                 ELSE
-                    next_state <= TX_WAIT;
+                    next_state <= TREE_DONE;    
                 END IF;
             WHEN TX_WAIT                        =>
                 IF pop = '1' THEN
