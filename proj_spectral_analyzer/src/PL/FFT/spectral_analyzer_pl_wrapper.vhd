@@ -693,11 +693,11 @@ BEGIN
     END PROCESS m_fifo_circ_buff;
 
     --circular buffer assertions
-    ASSERT (integer(m_write_cnt) - integer(m_read_cnt)) <= C_FIFO_WORD_SIZE
+    ASSERT (integer(m_write_cnt_i) - integer(m_read_cnt)) <= C_FIFO_WORD_SIZE
     REPORT "Not yet read FIFO data has been overwritten!"
     SEVERITY ERROR;
     
-    ASSERT (integer(m_write_cnt) - integer(m_read_cnt)) >= 0 OR (m_exec_state = IDLE)
+    ASSERT (integer(m_write_cnt_i) - integer(m_read_cnt)) >= 0 OR (m_exec_state = IDLE)
     REPORT "Read pointer cannot be larger than write pointer, we cannot read data that has not yet been written!"
     SEVERITY ERROR; 
 
@@ -705,7 +705,7 @@ BEGIN
     m_asrt_proc_rdwr_same_addr : PROCESS(sys_clk_in)
     BEGIN
       IF(rising_edge(sys_clk_in)) THEN
-        ASSERT NOT ((m_write_cnt = m_read_cnt) AND m_fifo_rden = '1' AND m_fifo_wren_i = '1')
+        ASSERT NOT ((m_write_cnt_i = m_read_cnt) AND m_fifo_rden = '1' AND m_fifo_wren_i = '1')
         REPORT "Cannot write and read from the same FIFO address!"
         SEVERITY ERROR; 
       END IF;
