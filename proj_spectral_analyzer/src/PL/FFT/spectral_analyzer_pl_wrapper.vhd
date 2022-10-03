@@ -8,7 +8,7 @@
 -- Project Name: 
 -- Target Devices: 
 -- Tool Versions: 
--- Description: wrapper that translates AXI burst transaction to and from the FFT block 
+-- Description: wrapper that translates AXI stream transaction to and from the FFT block 
 -- 
 -- Dependencies: 
 -- 
@@ -90,7 +90,7 @@ ARCHITECTURE structural OF spectral_analyzer_pl_wrapper IS
     SIGNAL tx_single_ndouble_mode   :    std_logic;   -- = '1' - output samples are transmited one at a time through port 0
                                                        -- = '0' - output samples are transmited two at a time
     SIGNAL burst_mode_en            :    std_logic;    --burst mode enable    
-    SIGNAL s_fifo_out_data_q        :    std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);          --FIFO output data
+    SIGNAL s_fifo_out_data_q        :    std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);          --FIFO output data
     SIGNAL addr_0_i_in              :    std_logic_vector(C_FFT_SIZE_LOG2-1 DOWNTO 0);
     SIGNAL data_re_window_d         :    std_logic_vector (C_SAMPLE_WDT-1 DOWNTO 0);
     SIGNAL data_im_window_d         :    std_logic_vector (C_SAMPLE_WDT-1 DOWNTO 0);
@@ -132,7 +132,6 @@ ARCHITECTURE structural OF spectral_analyzer_pl_wrapper IS
     SIGNAL s_write_cnt  : natural RANGE 0 TO C_FFT_SAMPLE_COUNT-1;
     SIGNAL s_read_cnt   : natural RANGE 0 TO C_FFT_SIZE-1;
     SIGNAL s_read_cnt_i : natural RANGE 0 TO C_FFT_SIZE-1;
-    SIGNAL s_read_cnt_ii: natural RANGE 0 TO C_FFT_SIZE-1;
     SIGNAL s_write_pointer : natural RANGE 0 TO C_FIFO_ADDR_SIZE-1;
     SIGNAL s_read_pointer  : natural RANGE 0 TO C_FIFO_ADDR_SIZE-1;
     -- sink has accepted all the streaming data and stored IN FIFO
@@ -140,7 +139,7 @@ ARCHITECTURE structural OF spectral_analyzer_pl_wrapper IS
     SIGNAL s_reads_done  : std_logic;
     SIGNAL s_all_done    : std_logic; --zero-filling has been completed, FFT can start computing
 
-    TYPE FIFO_TYPE IS ARRAY (0 TO (C_FIFO_WORD_SIZE-1)) OF std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);
+    TYPE FIFO_TYPE IS ARRAY (0 TO (C_FIFO_WORD_SIZE-1)) OF std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
     SIGNAL s_stream_data_fifo : FIFO_TYPE;
     SIGNAL m_stream_data_fifo : FIFO_TYPE;
 
@@ -342,11 +341,9 @@ BEGIN
     BEGIN  
       IF(rst_n_in = '0') THEN   
           s_read_cnt_i   <= 0; 
-          s_read_cnt_ii  <= 0; 
           s_exec_state_i <= IDLE;                                                                                  
       ELSIF (rising_edge(sys_clk_in)) THEN                                                          
           s_read_cnt_i   <= s_read_cnt;  
-          s_read_cnt_ii  <= s_read_cnt_i;                                                       
           s_exec_state_i <= s_exec_state;
       END IF;                                                                                                                                                           
     END PROCESS s_buffer_cache;
@@ -389,8 +386,6 @@ BEGIN
                 END IF;
                 
               END IF;  
-
-              
               
               IF (s_read_cnt <= C_FFT_SAMPLE_COUNT-1) THEN  --reading ADC samples
                   IF (s_fifo_rden = '1' AND rx_ready = '1') THEN
@@ -438,9 +433,9 @@ BEGIN
     --write to FIFO when tvalid and tready are asserted
     s_fifo_wren <= S_AXIS_TVALID AND s_axis_tready_i;
     --read from FIFO when we are not idling and never read and write from/to the same address
-    s_fifo_rden <= '1' WHEN  (s_exec_state /= IDLE) AND (integer(s_write_cnt) - integer(s_read_cnt_i) > 0) ELSE '0'; 
+    s_fifo_rden <= '1' WHEN  (s_exec_state /= IDLE) AND (integer(s_write_cnt) - integer(s_read_cnt) > 0) ELSE '0'; 
     --FIFO is full when the read and write counters distance is as large as the FIFO size
-    s_fifo_full_flag <= '1' WHEN ((integer(s_write_cnt) - integer(s_read_cnt_i)) >= C_FIFO_WORD_SIZE-1) ELSE '0';
+    s_fifo_full_flag <= '1' WHEN ((integer(s_write_cnt) - integer(s_read_cnt)) >= C_FIFO_WORD_SIZE-1) ELSE '0';
 
     -- FIFO Implementation (circular buffer)
      --streaming input data is stored in circular buffer
@@ -448,7 +443,7 @@ BEGIN
     BEGIN
       IF (rising_edge (sys_clk_in)) THEN
         IF (s_fifo_wren = '1') THEN
-          s_stream_data_fifo(s_write_pointer) <= S_AXIS_TDATA;
+          s_stream_data_fifo(s_write_pointer) <= S_AXIS_TDATA(C_SAMPLE_WDT-1 DOWNTO 0);
           IF(C_VERB = VERB_HIGH) THEN
             REPORT "Value: " & integer'image(to_integer(signed(S_AXIS_TDATA))) & 
             "@ global addr: [" & integer'image(s_write_cnt) & 
@@ -470,11 +465,11 @@ BEGIN
     END PROCESS s_fifo_circ_buff;
 
     --circular buffer assertions
-    ASSERT (integer(s_write_cnt) - integer(s_read_cnt_i)) <= C_FIFO_WORD_SIZE OR s_exec_state = ZERO_FILL 
+    ASSERT (integer(s_write_cnt) - integer(s_read_cnt)) <= C_FIFO_WORD_SIZE OR s_exec_state = ZERO_FILL 
     REPORT "Not yet read FIFO data has been overwritten!"
     SEVERITY ERROR;
     
-    ASSERT (integer(s_write_cnt) - integer(s_read_cnt_i)) >= 0 OR (s_exec_state = IDLE OR s_exec_state = ZERO_FILL)
+    ASSERT (integer(s_write_cnt) - integer(s_read_cnt)) >= 0 OR (s_exec_state = IDLE OR s_exec_state = ZERO_FILL)
     REPORT "Read pointer cannot be larger than write pointer, we cannot read data that has not yet been written!"
     SEVERITY ERROR; 
     
@@ -482,7 +477,7 @@ BEGIN
     s_asrt_proc_rdwr_same_addr : PROCESS(sys_clk_in)
     BEGIN
       IF(rising_edge(sys_clk_in)) THEN
-        ASSERT NOT ((s_write_cnt = s_read_cnt_i) AND s_fifo_rden = '1' AND s_fifo_wren = '1')
+        ASSERT NOT ((s_write_cnt = s_read_cnt) AND s_fifo_rden = '1' AND s_fifo_wren = '1')
         REPORT "Cannot write and read from the same FIFO address!"
         SEVERITY ERROR; 
       END IF;
@@ -496,9 +491,8 @@ BEGIN
     window_mult : PROCESS(s_fifo_out_data_q, window_sample_d) --AXI samples windowing
         VARIABLE data_mult : signed(2*C_SAMPLE_WDT-1 DOWNTO 0);
     BEGIN
-        --data_mult := signed(s_fifo_out_data_q(C_SAMPLE_WDT-1 DOWNTO 0))*signed(window_sample_d); 
-        --data_re_window_d <= std_logic_vector(shift_right(data_mult,C_WIND_FNC_SCALE_LOG2)(C_SAMPLE_WDT-1 DOWNTO 0));
-        data_re_window_d <= s_fifo_out_data_q(C_SAMPLE_WDT-1 DOWNTO 0); 
+        data_mult := signed(s_fifo_out_data_q)*signed(window_sample_d); 
+        data_re_window_d <= std_logic_vector(shift_right(data_mult,C_WIND_FNC_SCALE_LOG2)(C_SAMPLE_WDT-1 DOWNTO 0));
     END PROCESS window_mult;
     
   
@@ -579,7 +573,7 @@ BEGIN
     m_axis_tlast_d <= '1' WHEN (m_read_cnt = C_FFT_SPECTR_COUNT-1) ELSE '0';
     
     --IRQ on FFT done generation
-    IRQ_FFT_DONE <= comp_done; 
+    IRQ_FFT_DONE <= tx_ready; 
 
     --caching of write count (buffer addr) and buffer wr_en 
     --to match the latency of FFT reads and master buffer writes
@@ -603,8 +597,7 @@ BEGIN
         m_write_pointer <= to_integer(unsigned(wr_cnt_lower_order_bits(C_FIFO_ADDR_SIZE-1 DOWNTO 0)));
         m_read_pointer  <= to_integer(unsigned(rd_cnt_lower_order_bits(C_FIFO_ADDR_SIZE-1 DOWNTO 0)));
     END PROCESS m_cnt_to_ptr;                   
-
-                           
+                        
     tlast_tvalid_cache : PROCESS(sys_clk_in, rst_n_in)   --caching of tlast and tvalid to match data latency                                                                            
     BEGIN  
       IF(rst_n_in = '0') THEN   
@@ -661,12 +654,12 @@ BEGIN
     -- FIFO Implementation (circular buffer)
     --streaming input data is stored in circular buffer, real part of FFT is stored on even addresses, imag part on odd addresses
     m_fifo_circ_buff : PROCESS(sys_clk_in)
-      VARIABLE real_part : std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);
-      VARIABLE imag_part : std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);
+     -- VARIABLE real_part : std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0); TODO: remove if proven redundant
+     -- VARIABLE imag_part : std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);
     BEGIN
       IF (rising_edge(sys_clk_in)) THEN
         IF (m_fifo_rden = '1') THEN
-          m_stream_data_out <= m_stream_data_fifo(m_read_pointer);
+          m_stream_data_out <= std_logic_vector(to_signed(to_integer(signed(m_stream_data_fifo(m_read_pointer))),C_AXIS_DATA_WDT)); --sign extension
           IF(C_VERB = VERB_HIGH) THEN
             REPORT "Value: " & integer'image(to_integer(signed(m_stream_data_fifo(m_read_pointer)))) & 
             "@ global addr: [" & integer'image(m_read_cnt) & 
@@ -677,19 +670,19 @@ BEGIN
         
         IF (m_fifo_wren_i = '1') THEN
           IF(m_data_out_isimag_nreal = '0') THEN
-              real_part := std_logic_vector(to_signed(to_integer(signed(data_re_0_out)),C_AXIS_DATA_WDT));  --sign extension
-              m_stream_data_fifo(m_write_pointer) <= real_part;  
+              --real_part := std_logic_vector(to_signed(to_integer(signed(data_re_0_out)),C_AXIS_DATA_WDT));  --sign extension
+              m_stream_data_fifo(m_write_pointer) <= data_re_0_out;  
               IF(C_VERB = VERB_HIGH) THEN
-                REPORT "Value (real): " & integer'image(to_integer(signed(real_part))) & 
+                REPORT "Value (real): " & integer'image(to_integer(signed(data_re_0_out))) & 
                 "@ global addr: [" & integer'image(m_write_cnt_i) & 
                 "] @ circ buffer addr: [" &  integer'image(m_write_pointer) &
                 "] written to the master circ buffer";
               END IF;
           ELSE    
-              imag_part := std_logic_vector(to_signed(to_integer(signed(data_im_0_out)),C_AXIS_DATA_WDT));  --sign extension
-              m_stream_data_fifo(m_write_pointer) <= imag_part;  
+              --imag_part := std_logic_vector(to_signed(to_integer(signed(data_im_0_out)),C_AXIS_DATA_WDT));  --sign extension
+              m_stream_data_fifo(m_write_pointer) <= data_im_0_out;  
               IF(C_VERB = VERB_HIGH) THEN
-                REPORT "Value (imag): " & integer'image(to_integer(signed(imag_part))) & 
+                REPORT "Value (imag): " & integer'image(to_integer(signed(data_im_0_out))) & 
                 "@ global addr: [" & integer'image(m_write_cnt_i) & 
                 "] @ circ buffer addr: [" &  integer'image(m_write_pointer) &
                 "] written to the master circ buffer";
