@@ -8,7 +8,7 @@
 -- Project Name: 
 -- Target Devices: 
 -- Tool Versions: 
--- Description: wrapper that translates AXI stream transaction to and from the FFT block 
+-- Description: wrapper that translates AXI burst transaction to and from the FFT block 
 -- 
 -- Dependencies: 
 -- 
@@ -588,7 +588,7 @@ BEGIN
       END IF;                                                                                                                                                           
     END PROCESS m_buffer_cache; 
 
-    m_cnt_to_ptr : PROCESS(m_write_cnt,m_read_cnt) --use lower order bits of write and read counters as pointers to circular buffer FIFO
+    m_cnt_to_ptr : PROCESS(m_write_cnt_i,m_read_cnt) --use lower order bits of write and read counters as pointers to circular buffer FIFO
         VARIABLE wr_cnt_lower_order_bits : std_logic_vector(C_FFT_SPECTR_COUNT_LOG2-1 DOWNTO 0);
         VARIABLE rd_cnt_lower_order_bits : std_logic_vector(C_FFT_SPECTR_COUNT_LOG2-1 DOWNTO 0);
     BEGIN
