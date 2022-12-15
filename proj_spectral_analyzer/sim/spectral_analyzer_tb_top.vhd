@@ -42,7 +42,7 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      SIGNAL sys_clk_in     :  std_logic := '0';
      SIGNAL sys_clk_div_in :  std_logic := '0';
      SIGNAL rst_n_in       :  std_logic := '1';
-     CONSTANT C_CLK_PERIOD       :            time := 100 ns;
+     CONSTANT C_CLK_PERIOD       :            time := 10000 ns;
 
     -----------------------interrupts to PS----------------------------------
        
@@ -53,8 +53,8 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      SIGNAL S_AXIS_TREADY  : std_logic;                                       --slave ready
      SIGNAL S_AXIS_TDATA   : std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);     --data in
      SIGNAL S_AXIS_TSTRB   : std_logic_vector((C_AXIS_DATA_WDT/8)-1 DOWNTO 0); --byte qualifier, not used
-     SIGNAL S_AXIS_TLAST   : std_logic;                                        --indicates boundary of last packet
-     SIGNAL S_AXIS_TVALID  : std_logic;                                        --master initiate
+     SIGNAL S_AXIS_TLAST   : std_logic := '0';                                        --indicates boundary of last packet
+     SIGNAL S_AXIS_TVALID  : std_logic := '0';                                        --master initiate
 
     ------------------AXI stream PL to memory---------------------------
 
@@ -62,7 +62,7 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      SIGNAL M_AXIS_TDATA    : std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);     --data in
      SIGNAL M_AXIS_TSTRB    : std_logic_vector((C_AXIS_DATA_WDT/8)-1 DOWNTO 0); --byte qualifier, not used
      SIGNAL M_AXIS_TLAST    : std_logic;                                        --indicates boundary of last packet
-     SIGNAL M_AXIS_TVALID	: std_logic;
+     SIGNAL M_AXIS_TVALID	: std_logic := '0';
 
      -------------------simulation control---------------------------------------------------------------------
      CONSTANT C_MAX_TRANS_CNT   :          natural := 100;     --number of transaction before the simulation starves
@@ -75,7 +75,8 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      SIGNAL data_amp_arr        :          data_arr;
      SIGNAL data_raw_arr        :          data_arr_raw;
      SIGNAL data_amp_b          :          signed(C_DFT_WDT-1 DOWNTO 0);
-     SIGNAL freq_sig            :          real := real(2.0*3.14/8);
+     SIGNAL freq_sig            :          real := real(2.0*3.14/12);
+     SIGNAL freq_dev            :          real := 0.99;
      CONSTANT C_PROB_DEASSERT   :          natural := 99;
      SIGNAL zero_padd           :          signed(C_DFT_WDT - C_SAMPLE_WDT DOWNTO 0) := (OTHERS => '0');
 
@@ -85,6 +86,7 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      SIGNAL out_amp             :              integer;
      SIGNAL m_is_writing        :              std_logic := '0';
      SIGNAL s_is_reading        :              std_logic := '0';
+     
      
      SHARED VARIABLE seed1, seed2    :            integer := 999;
      
@@ -116,33 +118,33 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      END FUNCTION; 
     
     COMPONENT spectral_analyzer_pl_wrapper IS
-         PORT ( 
-               -----------------------clocks and resets---------------------------------
-                  
-               sys_clk_in         : IN  std_logic;
-               rst_n_in           : IN  std_logic;
+      PORT ( 
+        -----------------------clocks and resets---------------------------------
+           
+        sys_clk_in         : IN  std_logic;
+        rst_n_in           : IN  std_logic;
+        
+        -----------------------interrupts to PS----------------------------------
        
-               -----------------------interrupts to PS----------------------------------
-       
-               IRQ_FFT_DONE       : OUT std_logic;
-               
-               -----------------------AXI stream memory to PL---------------------------
-               
-               S_AXIS_TREADY	: OUT std_logic;                                       --slave ready
-               S_AXIS_TDATA	    : IN std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);     --data in
-               S_AXIS_TSTRB	    : IN std_logic_vector((C_AXIS_DATA_WDT/8)-1 DOWNTO 0); --byte qualifier, not used
-               S_AXIS_TLAST	    : IN std_logic;                                        --indicates boundary of last packet
-               S_AXIS_TVALID	: IN std_logic;                                        --master initiate
-               
-               -----------------------AXI stream PL to memory---------------------------
-               
-               M_AXIS_TREADY	: IN  std_logic;                                        --slave ready
-               M_AXIS_TDATA	    : OUT std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);     --data in
-               M_AXIS_TSTRB	    : OUT std_logic_vector((C_AXIS_DATA_WDT/8)-1 DOWNTO 0); --byte qualifier, not used
-               M_AXIS_TLAST	    : OUT std_logic;                                        --indicates boundary of last packet
-               M_AXIS_TVALID	: OUT std_logic
-
-         );
+        IRQ_FFT_DONE       : OUT std_logic;
+        
+        -----------------------AXI stream memory to PL---------------------------
+        
+        S_AXIS_TREADY	: OUT std_logic;                                       --slave ready
+        S_AXIS_TDATA	: IN std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);     --data in
+        S_AXIS_TSTRB	: IN std_logic_vector((C_AXIS_DATA_WDT/8)-1 DOWNTO 0); --byte qualifier, not used
+        S_AXIS_TLAST	: IN std_logic;                                        --indicates boundary of last packet
+        S_AXIS_TVALID	: IN std_logic;                                        --master initiate
+        
+        -----------------------AXI stream PL to memory---------------------------
+        
+        M_AXIS_TREADY	: IN  std_logic;                                        --slave ready
+        M_AXIS_TDATA	: OUT std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);     --data in
+        M_AXIS_TSTRB	: OUT std_logic_vector((C_AXIS_DATA_WDT/8)-1 DOWNTO 0); --byte qualifier, not used
+        M_AXIS_TLAST	: OUT std_logic;                                        --indicates boundary of last packet
+        M_AXIS_TVALID	: OUT std_logic
+  
+    );
     END COMPONENT spectral_analyzer_pl_wrapper;
 
 BEGIN
@@ -188,7 +190,7 @@ BEGIN
     BEGIN
     WAIT FOR rand_time_val(C_CLK_PERIOD,C_CLK_PERIOD*3);
     rst_n_in <= '0';
-    WAIT FOR rand_time_val(C_CLK_PERIOD*10,C_CLK_PERIOD*100);
+    WAIT FOR rand_time_val(C_CLK_PERIOD,C_CLK_PERIOD*3);
     rst_n_in <= '1';
     WAIT;
     END PROCESS reset_gen;
@@ -196,7 +198,7 @@ BEGIN
     AXIS_M_DMA : PROCESS  --AXI stream master process DMA for sending data to PL
         VARIABLE i : natural := 0;
     BEGIN
-        WAIT FOR rand_time_val(C_CLK_PERIOD*10,C_CLK_PERIOD*50);
+        WAIT FOR rand_time_val(C_CLK_PERIOD*8,C_CLK_PERIOD*20);
         IF (halt = '0') THEN
             IF(s_is_reading = '0') THEN
                 --initialize transfer
@@ -207,25 +209,31 @@ BEGIN
                 WAIT FOR 0 ns;
                 S_AXIS_TVALID <= '1';
                 WAIT FOR 0 ns;
-                --S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(real(2*i)*freq_sig))), C_AXIS_DATA_WDT));
-                S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**6-1)*real(i)), C_AXIS_DATA_WDT));
+                S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(2*i)*freq_sig) + real(2**10-1)*sin(real(2*i)*freq_sig*freq_dev)), C_AXIS_DATA_WDT));
+                --S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**6-1)*real(i)), C_AXIS_DATA_WDT));
                 i := i + 1;
                 LOOP 
                     IF(rand_int(0,100) > C_PROB_DEASSERT) THEN  --random deassert
                         S_AXIS_TVALID <= '0';
-                        WAIT FOR rand_time_val(C_CLK_PERIOD*5,C_CLK_PERIOD*10);
-                    ELSE
+                        WAIT FOR 0 ns;
+                        S_AXIS_TDATA <= std_logic_vector(to_unsigned(0, C_AXIS_DATA_WDT));
+                        WAIT FOR rand_time_val(C_CLK_PERIOD*(5/4),C_CLK_PERIOD*(28/3));
+                        WAIT UNTIL rising_edge(sys_clk_in);
+                        WAIT FOR 0 ns;
+                    ELSIF(i < C_FFT_SAMPLE_COUNT+1) THEN
                         S_AXIS_TVALID <= '1';
+                        WAIT FOR 0 ns;
+                        S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(2*i)*freq_sig) + real(2**10-1)*sin(real(2*i)*freq_sig*freq_dev)), C_AXIS_DATA_WDT));
                         WAIT UNTIL rising_edge(sys_clk_in) AND S_AXIS_TREADY = '1'; --transfer accepted
                         WAIT FOR 0 ns;
-                        S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(real(2*i)*freq_sig))), C_AXIS_DATA_WDT));
                         --S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**6-1)*real(i)), C_AXIS_DATA_WDT));
                         i := i + 1;
-                        IF(i = C_FFT_SAMPLE_COUNT+1) THEN --last transfer 
-                            i := 0; TODO: 
-                            S_AXIS_TVALID <= '0';
-                            EXIT;
-                        END IF;
+                    ELSE
+                       i := 0;  
+                       S_AXIS_TVALID <= '0';
+                       WAIT FOR 0 ns;
+                       S_AXIS_TDATA <= std_logic_vector(to_unsigned(0, C_AXIS_DATA_WDT));
+                       EXIT; 
                     END IF;                     
                 END LOOP;
                 --wait for FFT payload to be processed and read
