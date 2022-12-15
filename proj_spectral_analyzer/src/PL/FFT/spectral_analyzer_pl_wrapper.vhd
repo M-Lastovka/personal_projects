@@ -93,7 +93,6 @@ ARCHITECTURE structural OF spectral_analyzer_pl_wrapper IS
     SIGNAL s_fifo_out_data_q        :    std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);          --FIFO output data
     SIGNAL addr_0_i_in              :    std_logic_vector(C_FFT_SIZE_LOG2-1 DOWNTO 0);
     SIGNAL data_re_window_d         :    std_logic_vector (C_SAMPLE_WDT-1 DOWNTO 0);
-    SIGNAL data_im_window_d         :    std_logic_vector (C_SAMPLE_WDT-1 DOWNTO 0);
     SIGNAL m_write_cnt_std          :    std_logic_vector(C_FFT_SPECTR_COUNT_LOG2-1 DOWNTO 0);
     
     SIGNAL addr_window_fnc_q        :    std_logic_vector(C_FFT_SAMPLE_COUNT_LOG2-1 DOWNTO 0);
@@ -375,27 +374,25 @@ BEGIN
               s_reads_done    <= '0';
               s_all_done      <= '0';
           ELSE
-              IF (s_write_cnt <= C_FFT_SAMPLE_COUNT-1) THEN
+              IF (s_write_cnt < C_FFT_SAMPLE_COUNT-1) THEN
                 IF (s_fifo_wren = '1') THEN
                   --write pointer is incremented after each write
                   s_write_cnt   <= s_write_cnt + 1;
                   s_writes_done <= '0';
                 END IF;
-                IF (s_write_cnt = C_FFT_SAMPLE_COUNT-1) THEN
+              ELSE
                   s_writes_done <= '1';
-                END IF;
-                
-              END IF;  
+              END IF;
               
-              IF (s_read_cnt <= C_FFT_SAMPLE_COUNT-1) THEN  --reading ADC samples
+              IF (s_read_cnt < C_FFT_SAMPLE_COUNT-1) THEN  --reading ADC samples
                   IF (s_fifo_rden = '1' AND rx_ready = '1') THEN
                       --read pointer is incremented after each read
                       s_read_cnt   <= s_read_cnt + 1;
                       s_reads_done <= '0';
                   END IF;
-                  IF (s_read_cnt >= C_FFT_SAMPLE_COUNT-1) THEN
-                    s_reads_done <= '1';
-                  END IF;
+              ELSIF(s_read_cnt = C_FFT_SAMPLE_COUNT-1) THEN
+                s_reads_done <= '1';
+                s_read_cnt   <= s_read_cnt + 1; 
               ELSE  --zero-filling
                 IF(rx_ready = '1') THEN
                   s_read_cnt   <= s_read_cnt + 1; 
@@ -469,7 +466,7 @@ BEGIN
     REPORT "Not yet read FIFO data has been overwritten!"
     SEVERITY ERROR;
     
-    ASSERT (integer(s_write_cnt) - integer(s_read_cnt)) >= 0 OR (s_exec_state = IDLE OR s_exec_state = ZERO_FILL)
+    ASSERT (integer(s_write_cnt) - integer(s_read_cnt)) >= 0 OR (s_exec_state = IDLE OR s_exec_state = ZERO_FILL) OR s_writes_done = '1'
     REPORT "Read pointer cannot be larger than write pointer, we cannot read data that has not yet been written!"
     SEVERITY ERROR; 
     
@@ -617,27 +614,25 @@ BEGIN
            m_write_cnt   <=  0;
            m_writes_done <= '0';
       ELSIF (rising_edge(sys_clk_in)) THEN
-          IF (m_read_cnt <= C_FFT_SPECTR_COUNT-1) THEN
+          IF (m_read_cnt < C_FFT_SPECTR_COUNT-1) THEN
             IF (m_fifo_rden = '1') THEN
               --read pointer is incremented after each read
               m_read_cnt   <= m_read_cnt + 1;
               m_reads_done <= '0';
             END IF;
-            IF (m_read_cnt = C_FFT_SPECTR_COUNT-1) THEN
-              m_reads_done <= '1';
-            END IF;       
+          ELSE
+            m_reads_done <= '1';
           END IF;
                     
-          IF (m_write_cnt <= C_FFT_SPECTR_COUNT-1) THEN
+          IF (m_write_cnt < C_FFT_SPECTR_COUNT-1) THEN
               IF (m_fifo_wren = '1' AND tx_ready = '1') THEN
                   --write pointer is incremented after each write
                   m_write_cnt   <= m_write_cnt + 1;
                   m_writes_done <= '0';
               END IF;
-              IF (m_write_cnt = C_FFT_SPECTR_COUNT-1) THEN
-                m_writes_done <= '1';
-              END IF;
-           END IF;      
+          ELSE
+            m_writes_done <= '1';
+          END IF;      
       END IF;
     END PROCESS m_fifo_control;                                                                   
 
