@@ -149,7 +149,11 @@ ARCHITECTURE structural OF fft_dig_top IS
            sys_clk_in         : IN  std_logic;
            rst_n_in           : IN  std_logic; 
            
-           -------------------data-----------------------------------------
+           -------------------control-----------------------------------------
+           
+           alg_ctrl            : IN alg_command;
+           
+           -------------------data--------------------------------------------
            
            in_even_re          : IN std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
            in_even_im          : IN std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
@@ -287,7 +291,8 @@ BEGIN
     bttr2 : fft_bttr2
         PORT MAP (
            sys_clk_in       =>      sys_clk_in,
-           rst_n_in         =>      rst_n_in,           
+           rst_n_in         =>      rst_n_in,  
+           alg_ctrl         =>      alg_ctrl,         
            in_even_re       =>      out_even_re,
            in_even_im       =>      out_even_im,
            in_odd_re        =>      out_odd_re,
