@@ -34,7 +34,11 @@ ENTITY fft_bttr2 IS
            sys_clk_in         : IN  std_logic;
            rst_n_in           : IN  std_logic; 
            
-           -------------------data-----------------------------------------
+           -------------------control-----------------------------------------
+           
+           alg_ctrl            : IN alg_command;
+           
+           -------------------data--------------------------------------------
            
            in_even_re          : IN std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
            in_even_im          : IN std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
@@ -54,10 +58,13 @@ END fft_bttr2;
 
 ARCHITECTURE rtl OF fft_bttr2 IS
 
-    --signals used to generate variable deleay line
+    --signals used to generate variable delay line
     TYPE pipeline_delay_arr IS ARRAY (C_BUFFER_DELAY DOWNTO 0) OF signed(C_SAMPLE_WDT-1 DOWNTO 0);
     SIGNAL even_re_del   : pipeline_delay_arr; 
     SIGNAL even_im_del   : pipeline_delay_arr;
+    
+    --cached alg_ctrl
+    SIGNAL alg_ctrl_i    : alg_command;
     
     --cached odd and twiddle inputs
     SIGNAL in_odd_re_i        : signed(C_SAMPLE_WDT-1 DOWNTO 0);
@@ -99,6 +106,17 @@ BEGIN
     even_re_del(0) <= signed(in_even_re);
     even_im_del(0) <= signed(in_even_im);
     
+    alg_ctrl_cache : PROCESS(sys_clk_in, rst_n_in)   
+    BEGIN
+    
+        IF(rst_n_in = '0') THEN
+            alg_ctrl_i   <= SLEEP;    
+        ELSIF(rising_edge(sys_clk_in)) THEN
+            alg_ctrl_i   <= alg_ctrl;  
+        END IF;
+    
+    END PROCESS alg_ctrl_cache;
+    
     
     pipeline_delay : FOR index IN 0 TO C_BUFFER_DELAY-1 GENERATE       --delays the even data signal by C_BUFFER_DELAY clock cycles
         
@@ -109,8 +127,10 @@ BEGIN
                 even_re_del(index+1) <= (OTHERS => '0');
                 even_im_del(index+1) <= (OTHERS => '0');
             ELSIF(rising_edge(sys_clk_in)) THEN
-                even_re_del(index+1) <= even_re_del(index);
-                even_im_del(index+1) <= even_im_del(index);
+                IF alg_ctrl_i = RD_0_WR_1 OR alg_ctrl_i = RD_1_WR_0 THEN    
+                    even_re_del(index+1) <= even_re_del(index);
+                    even_im_del(index+1) <= even_im_del(index);
+                END IF;
             END IF;
         
         END PROCESS dff;
@@ -126,10 +146,12 @@ BEGIN
             twiddle_re_i  <= (OTHERS => '0');  
             twiddle_im_i  <= (OTHERS => '0');    
         ELSIF(rising_edge(sys_clk_in)) THEN
-            in_odd_re_i   <= signed(in_odd_re);
-            in_odd_im_i   <= signed(in_odd_im);  
-            twiddle_re_i  <= signed(twiddle_re);  
-            twiddle_im_i  <= signed(twiddle_im);  
+            IF alg_ctrl_i = RD_0_WR_1 OR alg_ctrl_i = RD_1_WR_0 THEN 
+                in_odd_re_i   <= signed(in_odd_re);
+                in_odd_im_i   <= signed(in_odd_im);  
+                twiddle_re_i  <= signed(twiddle_re);  
+                twiddle_im_i  <= signed(twiddle_im);  
+            END IF;
         END IF;
     
     END PROCESS in_cache;
