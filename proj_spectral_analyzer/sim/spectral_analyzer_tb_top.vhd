@@ -42,7 +42,10 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      SIGNAL sys_clk_in     :  std_logic := '0';
      SIGNAL sys_clk_div_in :  std_logic := '0';
      SIGNAL rst_n_in       :  std_logic := '1';
-     CONSTANT C_CLK_PERIOD       :            time := 10000 ns;
+     CONSTANT C_CLK_PERIOD       :            time := 30 ns;
+     CONSTANT C_S_AXIS_DATA      :            time := 4 ns;
+     CONSTANT C_S_AXIS_VALID     :            time := 1 ns;
+     CONSTANT C_M_AXIS_READY     :            time := 0.2 ns;
 
     -----------------------interrupts to PS----------------------------------
        
@@ -58,7 +61,7 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
 
     ------------------AXI stream PL to memory---------------------------
 
-     SIGNAL M_AXIS_TREADY   : std_logic;                                        --slave ready
+     SIGNAL M_AXIS_TREADY   : std_logic := '0';                                        --slave ready
      SIGNAL M_AXIS_TDATA    : std_logic_vector(C_AXIS_DATA_WDT-1 DOWNTO 0);     --data in
      SIGNAL M_AXIS_TSTRB    : std_logic_vector((C_AXIS_DATA_WDT/8)-1 DOWNTO 0); --byte qualifier, not used
      SIGNAL M_AXIS_TLAST    : std_logic;                                        --indicates boundary of last packet
@@ -77,7 +80,7 @@ ARCHITECTURE behavioral OF spectral_analyzer_tb_top IS
      SIGNAL data_amp_b          :          signed(C_DFT_WDT-1 DOWNTO 0);
      SIGNAL freq_sig            :          real := real(2.0*3.14/12);
      SIGNAL freq_dev            :          real := 0.99;
-     CONSTANT C_PROB_DEASSERT   :          natural := 99;
+     CONSTANT C_PROB_DEASSERT   :          natural := 100;
      SIGNAL zero_padd           :          signed(C_DFT_WDT - C_SAMPLE_WDT DOWNTO 0) := (OTHERS => '0');
 
      TYPE input_arr IS ARRAY(0 TO C_FFT_SIZE-1) OF std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
@@ -197,43 +200,65 @@ BEGIN
 
     AXIS_M_DMA : PROCESS  --AXI stream master process DMA for sending data to PL
         VARIABLE i : natural := 0;
+        VARIABLE j : natural := 0;
     BEGIN
         WAIT FOR rand_time_val(C_CLK_PERIOD*8,C_CLK_PERIOD*20);
         IF (halt = '0') THEN
             IF(s_is_reading = '0') THEN
                 --initialize transfer
                 i := 0;
+                j := 0;
                 m_is_writing <= '1';
-                WAIT FOR rand_time_val(C_CLK_PERIOD*5,C_CLK_PERIOD*10);
-                WAIT UNTIL rising_edge(sys_clk_in);
-                WAIT FOR 0 ns;
-                S_AXIS_TVALID <= '1';
-                WAIT FOR 0 ns;
-                S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(2*i)*freq_sig) + real(2**10-1)*sin(real(2*i)*freq_sig*freq_dev)), C_AXIS_DATA_WDT));
-                --S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**6-1)*real(i)), C_AXIS_DATA_WDT));
-                i := i + 1;
                 LOOP 
-                    IF(rand_int(0,100) > C_PROB_DEASSERT) THEN  --random deassert
+                    WAIT UNTIL rising_edge(sys_clk_in);
+                    IF(rand_int(0,100) > C_PROB_DEASSERT) THEN  --random deassert    
+                        IF S_AXIS_TVALID = '1' AND S_AXIS_TREADY = '1' THEN
+                            IF(C_VERB = VERB_MED) THEN
+                            REPORT "Value: " & integer'image(to_integer(signed(S_AXIS_TDATA))) & 
+                            " @ addr: [" & integer'image(i) & 
+                            "] pushed to the slave FIFO";
+                            END IF;  
+                        END IF;
+                        i := i + 1;                  
+                        WAIT FOR C_S_AXIS_VALID;
                         S_AXIS_TVALID <= '0';
-                        WAIT FOR 0 ns;
+                        WAIT FOR C_S_AXIS_DATA;
                         S_AXIS_TDATA <= std_logic_vector(to_unsigned(0, C_AXIS_DATA_WDT));
-                        WAIT FOR rand_time_val(C_CLK_PERIOD*(5/4),C_CLK_PERIOD*(28/3));
-                        WAIT UNTIL rising_edge(sys_clk_in);
-                        WAIT FOR 0 ns;
-                    ELSIF(i < C_FFT_SAMPLE_COUNT+1) THEN
-                        S_AXIS_TVALID <= '1';
-                        WAIT FOR 0 ns;
-                        S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(2*i)*freq_sig) + real(2**10-1)*sin(real(2*i)*freq_sig*freq_dev)), C_AXIS_DATA_WDT));
-                        WAIT UNTIL rising_edge(sys_clk_in) AND S_AXIS_TREADY = '1'; --transfer accepted
-                        WAIT FOR 0 ns;
-                        --S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**6-1)*real(i)), C_AXIS_DATA_WDT));
-                        i := i + 1;
+                        j := rand_int(2,15);
+                        FOR k IN 0 TO j LOOP
+                            WAIT UNTIL rising_edge(sys_clk_in);
+                        END LOOP;
                     ELSE
-                       i := 0;  
-                       S_AXIS_TVALID <= '0';
-                       WAIT FOR 0 ns;
-                       S_AXIS_TDATA <= std_logic_vector(to_unsigned(0, C_AXIS_DATA_WDT));
-                       EXIT; 
+                        IF S_AXIS_TREADY = '1' THEN
+                            IF S_AXIS_TVALID = '1' THEN
+                                IF(C_VERB = VERB_MED) THEN
+                                    REPORT "Value: " & integer'image(to_integer(signed(S_AXIS_TDATA))) & 
+                                    " @ addr: [" & integer'image(i) & 
+                                    "] pushed to the slave FIFO";
+                                END IF;
+                                IF i = C_FFT_SAMPLE_COUNT-1 THEN
+                                    WAIT FOR C_S_AXIS_VALID; 
+                                    S_AXIS_TVALID <= '0';
+                                    WAIT FOR C_S_AXIS_DATA;
+                                    S_AXIS_TDATA <= (OTHERS => 'U');
+                                    EXIT; 
+                                ELSE
+                                    WAIT FOR C_S_AXIS_DATA;
+                                    S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(2*i)*freq_sig) + real(2**10-1)*sin(real(2*i)*freq_sig*freq_dev)), C_AXIS_DATA_WDT));
+                                    i := i + 1;
+                                END IF;
+                            ELSE
+                                WAIT FOR C_S_AXIS_VALID;
+                                S_AXIS_TVALID <= '1';
+                                WAIT FOR C_S_AXIS_DATA;
+                                S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(2*i)*freq_sig) + real(2**10-1)*sin(real(2*i)*freq_sig*freq_dev)), C_AXIS_DATA_WDT));
+                            END IF;
+                        ELSE
+                            WAIT FOR C_S_AXIS_VALID;
+                            S_AXIS_TVALID <= '1';    
+                            WAIT FOR C_S_AXIS_DATA;
+                            S_AXIS_TDATA <= std_logic_vector(to_signed(integer(real(2**11-1)*sin(real(2*i)*freq_sig) + real(2**10-1)*sin(real(2*i)*freq_sig*freq_dev)), C_AXIS_DATA_WDT));
+                        END IF;  
                     END IF;                     
                 END LOOP;
                 --wait for FFT payload to be processed and read
@@ -250,6 +275,7 @@ BEGIN
 
     AXIS_S_DMA : PROCESS  --AXI stream slave process DMA for sending from PL to memory
         VARIABLE         i : natural := 0;
+        VARIABLE         j : natural := 0;
         VARIABLE real_part : real := 0.0;
         VARIABLE imag_part : real := 0.0;
     BEGIN
@@ -257,31 +283,52 @@ BEGIN
         IF (halt = '0') THEN
             IF(m_is_writing = '0') THEN
                 WAIT UNTIL rising_edge(IRQ_FFT_DONE);
-                WAIT FOR rand_time_val(C_CLK_PERIOD*10,C_CLK_PERIOD*50);
+                WAIT FOR rand_time_val(C_CLK_PERIOD*10,C_CLK_PERIOD*20);
                 --initialize transfer
                 i := 0;
+                j := 0;
                 s_is_reading <= '1';
                 WAIT FOR rand_time_val(C_CLK_PERIOD*5,C_CLK_PERIOD*10);
                 WAIT UNTIL rising_edge(sys_clk_in) AND M_AXIS_TVALID = '1';
-                WAIT FOR 0 ns;
-                M_AXIS_TREADY <= '1';
-                WAIT FOR 0 ns;
                 LOOP 
+                    WAIT UNTIL rising_edge(sys_clk_in);
                     IF(rand_int(0,100) > C_PROB_DEASSERT) THEN  --random deassert
+                        IF M_AXIS_TVALID = '1' AND M_AXIS_TREADY = '1' THEN
+                            IF(C_VERB = VERB_MED) THEN
+                            REPORT "Value: " & integer'image(to_integer(signed(M_AXIS_TDATA))) & 
+                            " @ addr: [" & integer'image(i) & 
+                            "] popped from the master FIFO";
+                            END IF;
+                            i := i + 1;  
+                        END IF;                  
+                        WAIT FOR C_M_AXIS_READY;
                         M_AXIS_TREADY <= '0';
-                        WAIT FOR rand_time_val(C_CLK_PERIOD*5,C_CLK_PERIOD*10);
+                        j := rand_int(2,15);
+                        FOR k IN 0 TO j LOOP
+                            WAIT UNTIL rising_edge(sys_clk_in);
+                        END LOOP;
                     ELSE
-                        M_AXIS_TREADY <= '1';
-                        WAIT UNTIL rising_edge(sys_clk_in) AND M_AXIS_TVALID = '1'; --transfer accepted
-                        WAIT FOR 0 ns;
-                        --data_raw_arr(i)   <= M_AXIS_TDATA;
-                        i := i + 1;
-                        IF(M_AXIS_TLAST = '1') THEN
-                            i := 0;
-                            M_AXIS_TREADY <= '0';
-                            EXIT;
+                        IF M_AXIS_TVALID = '1' THEN
+                            IF M_AXIS_TREADY = '1' THEN
+                                IF(C_VERB = VERB_MED) THEN
+                                    REPORT "Value: " & integer'image(to_integer(signed(M_AXIS_TDATA))) & 
+                                    " @ addr: [" & integer'image(i) & 
+                                    "] popped from the master FIFO";
+                                END IF;
+                                IF M_AXIS_TLAST = '1' THEN
+                                    EXIT;
+                                ELSE   
+                                    i := i + 1;                                 
+                                END IF;
+                            ELSE
+                                WAIT FOR C_M_AXIS_READY;
+                                M_AXIS_TREADY <= '1';
+                            END IF;
+                        ELSE
+                            WAIT FOR C_M_AXIS_READY;
+                            M_AXIS_TREADY <= '0';    
                         END IF;
-                    END IF;                     
+                    END IF;
                 END LOOP;
                 WAIT FOR rand_time_val(C_CLK_PERIOD*3,C_CLK_PERIOD*5);
                 FOR k IN 0 TO C_FFT_SIZE-1 LOOP     --display amplitude of computed DFT                 
