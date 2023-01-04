@@ -92,7 +92,7 @@ ARCHITECTURE structural OF spectral_analyzer_pl_wrapper IS
     SIGNAL burst_mode_en            :    std_logic;    --burst mode enable    
     SIGNAL s_fifo_out_data_q        :    std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);          --FIFO output data
     SIGNAL addr_0_i_in              :    std_logic_vector(C_FFT_SIZE_LOG2-1 DOWNTO 0);
-    SIGNAL data_re_window_d         :    std_logic_vector (C_SAMPLE_WDT-1 DOWNTO 0);
+    SIGNAL data_re_window_d         :    std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
     SIGNAL m_write_cnt_std          :    std_logic_vector(C_FFT_SPECTR_COUNT_LOG2-1 DOWNTO 0);
     
     SIGNAL addr_window_fnc_q        :    std_logic_vector(C_FFT_SAMPLE_COUNT_LOG2-1 DOWNTO 0);
@@ -174,6 +174,13 @@ ARCHITECTURE structural OF spectral_analyzer_pl_wrapper IS
     -- FIFO full flag
     SIGNAL m_fifo_full_flag            : std_logic; 
     SIGNAL m_data_out_isimag_nreal     : std_logic;
+
+    --signals for observation in GL
+    SIGNAL s_fifo_out_data_q_o : std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
+    SIGNAL window_sample_d_o   : std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
+    ATTRIBUTE S: string;
+    ATTRIBUTE S OF s_fifo_out_data_q_o : SIGNAL IS "TRUE";
+    ATTRIBUTE S OF window_sample_d_o   : SIGNAL IS "TRUE";
     
                                                                                                                            
 
@@ -332,7 +339,7 @@ BEGIN
 
     END PROCESS axi_slave_fsm;
 
-    s_axis_tready_i <= '1' WHEN ((s_exec_state = WRITE_FIFO) AND (s_write_pointer <= C_FIFO_WORD_SIZE-1)) ELSE '0';
+    s_axis_tready_i <= '1' WHEN ((s_exec_state = WRITE_FIFO) AND (s_writes_done = '0')) ELSE '0';
 
     --caching of write count (FFT addr) 
     --to match the latency of FFT writes and master buffer reads 
@@ -614,6 +621,12 @@ BEGIN
            m_write_cnt   <=  0;
            m_writes_done <= '0';
       ELSIF (rising_edge(sys_clk_in)) THEN
+        IF(m_exec_state = IDLE) THEN
+          m_read_cnt    <=  0;
+          m_reads_done  <= '0';
+          m_write_cnt   <=  0;
+          m_writes_done <= '0';
+        ELSE
           IF (m_read_cnt < C_FFT_SPECTR_COUNT-1) THEN
             IF (m_fifo_rden = '1') THEN
               --read pointer is incremented after each read
@@ -632,14 +645,15 @@ BEGIN
               END IF;
           ELSE
             m_writes_done <= '1';
-          END IF;      
+          END IF; 
+        END IF;   
       END IF;
     END PROCESS m_fifo_control;                                                                   
 
     --read from FIFO when slave is ready and data is valid and there is data ready in FIFO
     m_fifo_rden <= '1' WHEN ((M_AXIS_TREADY = '1') AND (m_axis_tvalid_q = '1') AND ((integer(m_write_cnt_i) - integer(m_read_cnt)) > 0)) OR (m_write_cnt_i = 1) ELSE '0';  
     --write to FIFO when we are not idling or at full FIFO capacity
-    m_fifo_wren <= '1' WHEN (m_exec_state = WRITE_FIFO) AND m_writes_done = '0' ELSE '0'; 
+    m_fifo_wren <= '1' WHEN (m_exec_state = WRITE_FIFO) AND (m_writes_done = '0') ELSE '0'; 
     --FIFO is full when the read and write counters distance is as large as the FIFO size
     m_fifo_full_flag <= '1' WHEN (integer(m_write_cnt) - integer(m_read_cnt)) >= C_FIFO_WORD_SIZE-1 ELSE '0';  
     
@@ -688,7 +702,7 @@ BEGIN
     END PROCESS m_fifo_circ_buff;
 
     --circular buffer assertions
-    ASSERT (integer(m_write_cnt_i) - integer(m_read_cnt)) <= C_FIFO_WORD_SIZE
+    ASSERT (integer(m_write_cnt_i) - integer(m_read_cnt)) <= C_FIFO_WORD_SIZE OR m_exec_state = IDLE
     REPORT "Not yet read FIFO data has been overwritten!"
     SEVERITY ERROR;
     
