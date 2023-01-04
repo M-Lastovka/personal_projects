@@ -173,16 +173,7 @@ ARCHITECTURE structural OF spectral_analyzer_pl_wrapper IS
     SIGNAL m_fifo_rden   : std_logic;
     -- FIFO full flag
     SIGNAL m_fifo_full_flag            : std_logic; 
-    SIGNAL m_data_out_isimag_nreal     : std_logic;
-
-    --signals for observation in GL
-    SIGNAL s_fifo_out_data_q_o : std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
-    SIGNAL window_sample_d_o   : std_logic_vector(C_SAMPLE_WDT-1 DOWNTO 0);
-    ATTRIBUTE S: string;
-    ATTRIBUTE S OF s_fifo_out_data_q_o : SIGNAL IS "TRUE";
-    ATTRIBUTE S OF window_sample_d_o   : SIGNAL IS "TRUE";
-    
-                                                                                                                           
+    SIGNAL m_data_out_isimag_nreal     : std_logic;                                                                        
 
     COMPONENT fft_dig_top IS
         PORT ( 
