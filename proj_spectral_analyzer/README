@@ -28,6 +28,7 @@ doc - documentation
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 Project status: Not complete, so far FFT processing has been designed and simulated, AXI stream slave/master has been designed and simulated
+                This project is obsolete, FFT IP will be reworked in RTL_FFT_on_Zynq repo
 
 TODO: create and package the as an IP
       verify the IP with the Xilinx AXI Stream verification IP
